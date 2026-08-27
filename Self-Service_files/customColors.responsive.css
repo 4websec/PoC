@@ -1,0 +1,94 @@
+@media only screen and (max-width : 46em) {
+.ss-panel-cart .ui-block-a,
+.ss-panel-cart .ui-block-b,
+.ss-panel-cart .ui-block-c,
+.ss-panel-cart .ui-block-d,
+.ss-panel-cart .ui-block-e,
+.ss-content .ui-block-a,
+.ss-content .ui-block-b,
+.ss-content .ui-block-c,
+.ss-content .ui-block-d,
+.ss-content .ui-block-e,
+.ss-content .ui-block-a-uneven,
+.ss-content .ui-block-b-uneven {
+	width: 100%;
+	float: none;
+}
+
+.ui-panel-position-right {
+	right: -17em;
+}
+
+/* Panel right closed animated */
+.ui-panel-animate.ui-panel-position-right.ui-panel-display-overlay {
+	-webkit-transform: translate3d(17em,0,0);
+	-moz-transform: translate3d(17em,0,0);
+	transform: translate3d(17em,0,0);
+}
+
+.ui-panel-page-content-position-right {
+	left: -17em;
+	right: 17em;
+}
+
+.ui-panel-animate.ui-panel-page-content-position-right {
+	-webkit-transform: translate3d(-17em,0,0);
+	-moz-transform: translate3d(-17em,0,0);
+	transform: translate3d(-17em,0,0);
+}
+
+.ui-panel-dismiss-position-right.ui-panel-dismiss-open {
+	left: -17em;
+	right: 17em;
+}
+}
+@media only screen and (max-width : 30em) {
+	.ss-header h1 {
+		font-size: 1.2em;
+		line-height: 1.2em;
+	}
+	
+	.ss-header h4 {
+		font-size: 1em;
+		line-height: 1em;
+	}
+	
+	.ss-header-internal {
+background-image: url("../resources/img/county-logo.png");
+background-size: 36px;
+background-repeat: no-repeat;
+padding: 0 0 0 40px;
+		min-height: 36px;
+	}
+	
+	.ss-header-actions a {
+		height: 36px;
+		width: 36px;
+	}
+	
+	.ss-header-actions-cart {
+		background: #114577 center center no-repeat url("../resources/img/appbar.cart-tiny.png");
+	}
+	
+	.ss-header-actions-home {
+		background: #114577 center center no-repeat url("../resources/img/appbar.home-tiny.png");
+	}
+	
+	.ss-header-actions-user {
+		background: #114577 center center no-repeat url("../resources/img/appbar.user-tiny.png");
+	}
+	
+	.ss-header-actions-docs {
+		background: #114577 center center no-repeat url("../resources/img/appbar.content-save-tiny.png");
+	}
+
+	.ss-header-actions-language {
+		background: #114577 center center no-repeat url("../resources/img/Language-Icon-Transparent-tiny.png");
+	.ss-header-actions-subscription {
+		background: #114577 center center no-repeat url("../resources/img/appbar.user-tiny.png");
+	}
+}
+.ss-oval-button-highlight {
+	background-color: #114577;
+}
+

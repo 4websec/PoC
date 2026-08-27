@@ -1,0 +1,94 @@
+// messageAnnouncement.js (lightweight live-region announcer)
+(function (w) {
+  function getOrCreate(id, attrs) {
+    var el = document.getElementById(id);
+    if (!el) {
+      el = document.createElement('div');
+      el.id = id;
+      if (attrs) Object.keys(attrs).forEach(function (k) { el.setAttribute(k, attrs[k]); });
+      // visually hide but keep accessible
+      el.style.position = 'absolute';
+      el.style.width = '1px';
+      el.style.height = '1px';
+      el.style.margin = '-1px';
+      el.style.padding = '0';
+      el.style.overflow = 'hidden';
+      el.style.clip = 'rect(0 0 0 0)';
+      el.style.whiteSpace = 'nowrap';
+      el.style.border = '0';
+      document.body.appendChild(el);
+    }
+    return el;
+  }
+  function announce(msg, politeness) {
+    var id = politeness === 'assertive' ? 'ss-live-assertive' : 'ss-live-polite';
+    var attrs = { 'role': politeness === 'assertive' ? 'alert' : 'status', 'aria-live': politeness || 'polite', 'aria-atomic': 'true' };
+    var node = getOrCreate(id, attrs);
+    node.textContent = '';
+    setTimeout(function(){ node.textContent = msg || ''; }, 10);
+  }
+  w.SSAnnounce = {
+    polite: function (msg) { announce(msg, 'polite'); },
+    assertive: function (msg) { announce(msg, 'assertive'); }
+  };
+})(window);
+
+// === Add Riverside Change Password rules & bindings ===
+(function($, w){
+  if (!$) return;
+
+  function getText($el){
+    if (!$el || !$el.length) return '';
+    var t = ($el.attr('aria-label') || $el.attr('title') || '').trim();
+    if (!t && $el.attr('aria-describedby')) {
+      var id = $el.attr('aria-describedby');
+      var d = document.getElementById(id);
+      if (d) t = (d.textContent || '').trim();
+    }
+    if (!t) t = ($el.text() || '').replace(/\s+/g,' ').trim();
+    return t;
+  }
+
+  function scanCp($scope){
+    var $root = ($scope && $scope.length ? $scope : $('#changePasswordPopup'));
+    if (!$root.length) { $root = $('.ss-password-change-popup'); }
+    if (!$root.length) return;
+    var $err = $root.find('.ss-validation:visible, .ui-state-error:visible, .ss-validation-messages:visible, .ss-passwordValidation-messages:visible, #cp-errors:visible').first();
+    if ($err.length){
+      var msg = ($err.text()||'').replace(/\s+/g,' ').trim();
+      if (w.SSAnnounce && msg) w.SSAnnounce.assertive(msg);
+      if (!$err.attr('tabindex')) $err.attr('tabindex','-1');
+      try { $err.focus(); } catch(ign) {}
+    }
+  }
+
+  // Announce the password info button (click or Enter/Space)
+  $(document).on('click keydown', '#changePasswordPopup .password-info, .ss-password-change-popup .password-info, .ss-password-change-popup .wip, .ui-btn.ui-icon-info', function(e){
+    var k = e.which || e.keyCode;
+    if (e.type === 'keydown' && k !== 13 && k !== 32) return;
+    var $btn = $(this);
+    var msg = getText($btn);
+    if (!msg) {
+      // Try common help ids
+      var txt = ($('#newPasswordHelp').text()||$('#pw-req').text()||'').replace(/\s+/g,' ').trim();
+      if (txt) msg = txt;
+    }
+    if (msg) { e.preventDefault(); if (w.SSAnnounce) w.SSAnnounce.polite(msg); }
+    var $popup = $btn.closest('#changePasswordPopup');
+    if (!$popup.length) $popup = $btn.closest('.ss-password-change-popup');
+    // If legacy flow renders messages after click, announce them
+    setTimeout(function(){ scanCp($popup); }, 80);
+  });
+
+  // After submit or any popup button interaction, rescan for new errors
+  $(document).on('click keydown', '#changePasswordPopup [type="submit"], #changePasswordPopup .ui-btn, .ss-password-change-popup [type="submit"], .ss-password-change-popup .ui-btn', function(e){
+    var k = e.which || e.keyCode;
+    if (e.type === 'keydown' && k !== 13 && k !== 32) return;
+    var $popup = $(this).closest('#changePasswordPopup');
+    if (!$popup.length) $popup = $(this).closest('.ss-password-change-popup');
+    setTimeout(function(){ scanCp($popup); }, 100);
+  });
+
+  // MutationObserver removed - error announcements are now handled directly
+  // by announcePasswordError() in passwordChange.body.jsp to avoid CPU overhead
+})(window.jQuery, window);

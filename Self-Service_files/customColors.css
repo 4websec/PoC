@@ -1,0 +1,253 @@
+/* MOBILE LIST VIEW */
+.ss-listview {
+	border: 1px solid #114577;
+}
+
+.ss-listview
+.ss-listview-internal {
+	border-top: 1px solid #114577;
+}
+
+.ss-form-divide {
+	border-bottom: 1px solid #114577;
+}
+
+.ss-header-subheader h1 {
+	color: #114577;
+}
+
+.ss-panel-cart {
+	border-left: 5px solid #ec6f32 !important;
+}
+
+.ss-header-subheader h4 {
+	color: #ec6f32;
+}
+
+.ss-group-title {
+	color: #ec6f32;
+	border-bottom: 1px solid #114577;
+}
+
+.ss-unbordered-message h1 {
+	color: #114577;
+}
+
+.ss-header h1 {
+	color: #114577;
+}
+
+.ss-header h4 {
+	color: #ec6f32;
+}
+.ss-header h2 {
+	color: #ec6f32;
+}
+
+.ss-header-stripe-top {
+	background: #ec6f32;
+}
+
+.ss-header-stripe-bottom {
+	background: #114577;
+}
+
+.ss-header-internal {
+	color: #114577;
+}
+
+.ss-header-actions a:hover {
+	background-color: #ec6f32;
+}
+
+.ss-header-actions-cart {
+	background: #114577 center center no-repeat url("../resources/img/appbar.cart-medium.png");
+}
+
+.ss-header-actions-home {
+	background: #114577 center center no-repeat url("../resources/img/appbar.home-medium.png");
+}
+
+.ss-header-actions-user {
+	background: #114577 center center no-repeat url("../resources/img/appbar.user-medium.png");
+}
+
+.ss-header-actions-docs {
+	background: #114577 center center no-repeat url("../resources/img/appbar.content-save-medium.png");
+}
+
+.ss-header-actions-language {
+	background: #114577 center center no-repeat url("../resources/img/Language-Icon-Transparent-medium.png");
+}
+
+.ss-footer {
+	background: #114577;
+}
+
+.ss-footer-stripe {
+	background: #ec6f32;
+}
+
+.ss-action {
+	background: #114577 left center no-repeat;
+	border: 1px solid #114577;
+}
+
+.ss-action:hover {
+	background-color: #ec6f32;
+}
+
+.ss-action-checkmark-pencil {
+	background-image: url("../resources/img/appbar.checkmark.pencil.png");
+}
+
+	.ss-action-page-copy {
+	background-image: url("../resources/img/appbar.page.copy.png");
+}
+
+	.ss-action-page-search {
+		background-image: url("../resources/img/appbar.page.search.png");
+	}
+	.ss-action-page-subscription {
+		background-image: url("../resources/img/appbar.calendar.dollar.png");
+	}
+	.ss-action-fraudGuard {
+		background-image: url("../resources/img/appbar.page.fraudGuard.png");
+	}
+
+.ss-action-internal h1 {
+	color: #114577;
+}
+
+.ss-action-internal h4 {
+	color: #ec6f32;
+}
+
+.ss-action2 {
+	background: #114577 left center no-repeat url("../resources/img/appbar.page.file.pdf.png");
+	border: 1px solid #114577;
+}
+
+.ss-generic-box {
+	border: 1px solid #114577;
+}
+
+.ui-bar-a,
+.ui-page-theme-a .ui-bar-inherit,
+html .ui-bar-a .ui-bar-inherit,
+html .ui-body-a .ui-bar-inherit,
+html body .ui-group-theme-a .ui-bar-inherit {
+	background: #114577 /*{a-bar-background-color}*/;
+}
+
+.ui-overlay-a,
+.ui-page-theme-a,
+.ui-page-theme-a .ui-panel-wrapper {
+	border-color: #114577 /*{a-page-border}*/;
+}
+
+.ui-body-a,
+.ui-page-theme-a .ui-body-inherit,
+html .ui-bar-a .ui-body-inherit,
+html .ui-body-a .ui-body-inherit,
+html body .ui-group-theme-a .ui-body-inherit,
+html .ui-panel-page-container-a {
+	border-color: #114577 /*{a-body-border}*/;
+}
+
+.ui-overlay-b,
+.ui-page-theme-b,
+.ui-page-theme-b .ui-panel-wrapper {
+	border-color: #114577 /*{b-page-border}*/;
+}
+
+.ui-bar-b,
+.ui-page-theme-b .ui-bar-inherit,
+html .ui-bar-b .ui-bar-inherit,
+html .ui-body-b .ui-bar-inherit,
+html body .ui-group-theme-b .ui-bar-inherit {
+	background: #ec6f32 /*{b-bar-background-color}*/;
+}
+
+.ui-body-b,
+.ui-page-theme-b .ui-body-inherit,
+html .ui-bar-b .ui-body-inherit,
+html .ui-body-b .ui-body-inherit,
+html body .ui-group-theme-b .ui-body-inherit,
+html .ui-panel-page-container-b {
+	border-color: #114577 /*{b-body-border}*/;
+}
+
+.ui-overlay-c,
+.ui-page-theme-c,
+.ui-page-theme-c .ui-panel-wrapper {
+	border-color: #114577 /*{c-page-border}*/;
+}
+
+.ui-body-c,
+.ui-page-theme-c .ui-body-inherit,
+html .ui-bar-c .ui-body-inherit,
+html .ui-body-c .ui-body-inherit,
+html body .ui-group-theme-c .ui-body-inherit,
+html .ui-panel-page-container-c {
+	border-color: #114577 /*{c-body-border}*/;
+}
+
+ul.cblist-input-list {
+	border: 1px solid #114577 /*{c-body-border}*/;
+}
+
+.ss-header-internal {
+background-image: url("../resources/img/county-logo.png");
+background-size: 60px;
+background-repeat: no-repeat;
+}
+
+.ss-table tbody tr:hover:nth-child(odd) td,
+.ss-table tbody tr:hover:nth-child(odd) th, 
+ul[id$="savedItemsView"] li:hover  {
+	background-color: #ec6f32;
+	color:#FFFFFF;
+	cursor: pointer;
+}
+.ss-row:hover, .ss-row-selected{
+	background-color: #ec6f32;
+	color:#FFFFFF;
+	cursor: pointer;
+}
+.table-stripe tbody tr:hover:nth-child(odd) td {
+	background-color: #ec6f32;
+	color:#FFFFFF;
+	cursor: pointer;
+}
+.ss-text-overlay {
+	background-color: #ec6f32;
+}
+.ui-page-theme-a .ui-btn.ui-btn-active {
+	background-color: #ec6f32;
+}
+li.acItem.ui-li-static.ui-body-inherit:hover {
+	background-color: #ec6f32;
+	color:#FFFFFF;
+	cursor: pointer;
+	opacity: .75;
+}
+li.acItem.ui-li-static.ui-body-inherit:hover:nth-child(odd),
+li.acItem.ui-li-static.ui-body-inherit:hover:nth-child(odd) {
+	background-color: #ec6f32;
+	color:#FFFFFF;
+	cursor: pointer;
+}
+li.acItem.ui-li-static.ui-body-inherit.acItem-selected {
+	background-color: #ec6f32;
+	color:#FFFFFF;
+}
+li.acFinal.ui-li-static.ui-body-inherit:hover {
+	background-color: #ec6f32;
+	color:#FFFFFF;
+}
+.ss-popup-inner a.ui-collapsible-heading-toggle.ui-btn {	background: #114577;	color: #fff;	font-weight: normal;}
+.ss-oval-button-highlight {
+	background-color: #114577;
+}
+

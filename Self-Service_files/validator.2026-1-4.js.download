@@ -1,0 +1,255 @@
+function validatePage(page) {
+	pageValid = true;
+
+	// Remove any validation messages that may already be set
+	$(".ss-validation-messages ul").remove();
+	
+	var cartItemQuantityElements = $("input[id$='cartItemQuantity']");
+	var cartItemQuantityErrorMessageIsInUse = false;
+	for (var i = 0; i < cartItemQuantityElements.length; i++) {
+		var cartItemField = $("#" + cartItemQuantityElements[i].id);
+
+		if (parseInt(cartItemQuantityElements[i].value) < parseInt(cartItemQuantityElements[i].min) ||
+			parseInt(cartItemQuantityElements[i].value) > parseInt(cartItemQuantityElements[i].max) ||
+			cartItemQuantityElements[i].value === "") {
+			if (!cartItemQuantityErrorMessageIsInUse) {
+				addErrors(undefined, cartItemField, messageStrings[selectedLanguage].Page_cart_message_wrongNumberOfCopies);
+				cartItemQuantityErrorMessageIsInUse = true;
+			} else {
+				addFieldErrors(undefined, cartItemField, undefined);
+			}
+
+			pageValid = false;
+		} else {
+			clearErrors(undefined, cartItemField);
+		}
+	}
+
+	$(page).find('[data-role="controlgroup"][class~="required"]').each(function(index, element) {
+		var fieldName = $(element).prop("name");
+		var labelValue = $(element).find('legend').text();
+		var selectedRadioButtons = $(element).find('[class~="ui-radio-on"]').length;
+		var checked = false;
+		$(element).find('[for^="'+fieldName+'"]').each(function() {
+			if($(this).is(":checked")) {
+				checked = true;
+			}
+		});
+
+		if(selectedRadioButtons == 0 || checked) {
+			addRadioErrors(element, labelValue + " " + messageStrings[selectedLanguage].Standard_validation_required);
+			pageValid = false;
+		} else {
+			clearRadioErrors(element);
+		}
+	});
+
+	$(page).find('label').each(function(index, element) {
+		var elSelector = $(element);
+		var elementValid = true;
+		var fieldName = elSelector.prop('for');
+		var field = $('#' + fieldName);
+		var labelValue = elSelector.text();
+		// Make sure all required fields have been filled in. 
+		if (elSelector.hasClass('required')) {
+			if (!isRequiredValueFulfilled(field)) {
+				addErrors(element, field, labelValue + ' ' + messageStrings[selectedLanguage].Standard_validation_required);
+				pageValid = false;
+				elementValid = false;
+			} else {
+				clearErrors(element, field);
+			}
+		}
+		// Make sure all number fields contain a number within the allowed bounds.
+		if ($(field).attr('type') === 'number') {
+			var fieldVal = parseInt($(field).val());
+			var minVal = parseInt($(field).attr('min'));
+			var maxVal = parseInt($(field).attr('max'));
+
+			if (!isNumeric(field)) {
+				addErrors(element, field, labelValue + ' ' + messageStrings[selectedLanguage].Standard_validation_number);
+				pageValid = false;
+			} else if (minVal && fieldVal < minVal) {
+				addErrors(element, field, labelValue + ' ' + messageStrings[selectedLanguage].Standard_validation_greaterThan + ' ' + (minVal - 1));
+				pageValid = false;
+			} else if (maxVal && fieldVal > maxVal) {
+				addErrors(element, field, labelValue + ' ' + messageStrings[selectedLanguage].Standard_validation_lessThan + ' ' + (maxVal + 1));
+				pageValid = false;
+			}
+			else if (elementValid) {
+				clearErrors(element, field);
+			}
+		} else if (field.attr('type') === 'email' && elSelector.hasClass('required')) {
+			// Make sure the email address is valid if it is a required field.
+			if (!isValidEmail(field)) {
+				addErrors(element, field, labelValue + ' ' + messageStrings[selectedLanguage].Standard_validation_email);
+				pageValid = false;
+			} else if (elementValid) {
+				clearErrors(element, field);
+			}
+		}
+	});
+
+	return pageValid;
+}
+
+function addRadioErrors(element, message) {
+	$(element).add($(element).find('legend')).addClass('error');
+	$(element).add($(element).find('[class~=ui-radio]')).addClass('error');
+	$(element).add($(element).find('[for]')).addClass('error');
+
+	if(_.isString(message)) {
+		selfservice.validation.addValidationErrors(message);
+	}
+}
+
+function clearRadioErrors(element) {
+	$(element).find('legend,[class~=radio],[for]').removeClass('error');
+}
+
+function addFieldErrors(label, field, message) {
+	$(field).add(field.closest('.ui-input-text')).addClass('error');
+
+	if (label !== undefined) {		
+		$(label).addClass('error').attr('for');
+	}
+}
+
+function addErrors(label, field, message) {
+	addFieldErrors(label, field, message);
+	if(_.isString(message)) {
+		selfservice.validation.addValidationErrors(message);
+	}
+}
+
+function clearErrors(label, field) {
+	$(field).add(field.closest('.ui-input-text')).removeClass('error');
+
+	if (label !== undefined) {
+		$(label).removeClass('error').attr('for');
+	}
+}
+
+function isNumeric(field) {
+	var val = $(field).val();
+	if (isNaN(val)) {
+		return false;
+	}
+
+	return true;
+}
+
+function isRequiredValueFulfilled(field) {
+	if ($(field).is(':checkbox')) {
+		return true;
+	}
+	var val = $(field).val();
+	if (!/\S/.test(val)) {
+		return false;
+	}
+	return true;
+}
+
+function isValidDate(field) {
+	// Month and day are enforced, we just need to check that year is in reasonable range
+	var val = $(field).val();
+	if (val != '') {
+		var realdate = new Date(val);
+		alert(realdate.getTime());
+		var defaultDatePattern = new RegExp("^(([0-9]{1,2})/([0-9]{1,2})/([0-9]{4}))$");
+		var ISO_8691DatePattern = new RegExp("^(([0-9]{4})-([0-9]{1,2})-([0-9]{2}))$");
+
+		if (defaultDatePattern.test(val)) {
+			var matches = defaultDatePattern.exec(val);
+			switch (matches[2]) {
+			case "01":
+			case "03":
+			case "05":
+			case "08":
+			case "10":
+			case "12":
+				if (matches[3] < 0 || matches[3] > 31) {
+					return false;
+				}
+				break;
+			case "04":
+			case "06":
+			case "07":
+			case "09":
+			case "11":
+				if (matches[3] < 0 || matches[3] > 30) {
+					return false;
+				}
+				break;
+			case "02":
+				if (matches[3] < 0 || (matches[4] % 4 == 0 && matches[3] > 29) || matches[3] > 28) {
+					return false;
+				}
+				break;
+			default:
+				return false;
+				break;
+			}
+			return true;
+		}else if (ISO_8691DatePattern.test(val)) {
+			var matches = defaultDatePattern.exec(val);
+			switch (matches[3]) {
+			case "01":
+			case "03":
+			case "05":
+			case "08":
+			case "10":
+			case "12":
+				if (matches[4] < 0 || matches[4] > 31) {
+					return false;
+				}
+				break;
+			case "04":
+			case "06":
+			case "07":
+			case "09":
+			case "11":
+				if (matches[4] < 0 || matches[4] > 30) {
+					return false;
+				}
+				break;
+			case "02":
+				if (matches[4] < 0 || (matches[2] % 4 == 0 && matches[4] > 29) || matches[4] > 28) {
+					return false;
+				}
+				break;
+			}
+			if (matches[2] < 0 ||  matches[2] > 12) {
+				return false;
+			} else if (matches[4] < 0 || matches[4] > 31) {
+				return false;
+			}
+			return true;
+		} else {
+			return false;
+		}
+	} else {
+		return true;
+	}
+}
+
+function hasClass(field, classname) {
+	var classes = field[0].className.split("\s");
+	for (classString in classes) {
+		if (classString === classname) {
+			return true;
+		}
+	}
+	return false;
+}
+
+function isValidEmail(field) {
+	var val = $(field).val();
+	if (val != '') {
+		var emailPattern = new RegExp("^((\\\"[^\\\"\\f\\n\\r\\t\\v]+\\\")|([\\w\\!\\#\\$\\%\\&\\\'\\*\\+\\-\\~\\/\\^\\`\\|\\{\\}]+(\\.[\\w\\!\\#\\$\\%\\&\\\'\\*\\+\\-\\~\\/\\^\\`\\|\\{\\}]+)*))@((\\[(((25[0-5])|(2[0-4][0-9])|([0-1]?[0-9]?[0-9]))\\.((25[0-5])|(2[0-4][0-9])|([0-1]?[0-9]?[0-9]))\\.((25[0-5])|(2[0-4][0-9])|([0-1]?[0-9]?[0-9]))\\.((25[0-5])|(2[0-4][0-9])|([0-1]?[0-9]?[0-9])))\\])|(((25[0-5])|(2[0-4][0-9])|([0-1]?[0-9]?[0-9]))\\.((25[0-5])|(2[0-4][0-9])|([0-1]?[0-9]?[0-9]))\\.((25[0-5])|(2[0-4][0-9])|([0-1]?[0-9]?[0-9]))\\.((25[0-5])|(2[0-4][0-9])|([0-1]?[0-9]?[0-9])))|((([A-Za-z0-9\\-])+\\.)+[A-Za-z\\-]+))$");
+		var matches = emailPattern.test(val);
+		return matches;
+	}
+
+	return true;
+}

@@ -1,0 +1,1059 @@
+/*!
+ * DateBox A11y extension - accessible names for the main input + optional Month/Day/Year sub-inputs
+ * Works with jtsage-datebox v4.1.0 (and jQM DateBox namespace fallback)
+ * 
+ * Includes:
+ * - Accessible names for inputs and buttons
+ * - Space bar support for opening calendar from input/icon
+ * - Keyboard support for +/- spinner buttons (Space, Enter)
+ * - Tab navigation from year field to "Set Date" button
+ * - NVDA/screen reader announcements when calendar opens
+ * - Focus management after date selection
+ */
+(function (window, document, $) {
+  "use strict";
+  if (!window || !document || !$) return;
+
+  var hasJtsage = $.jtsage && $.jtsage.datebox;
+  var hasMobile = $.mobile && $.mobile.datebox;
+  if (!hasJtsage && !hasMobile) return;
+
+  var namespace  = hasJtsage ? "jtsage" : "mobile";
+  var BaseWidget = hasJtsage ? $.jtsage.datebox : $.mobile.datebox;
+
+  // ---- helpers -------------------------------------------------------------
+
+  // Inject CSS for the styled date header inside the DateBox popup
+  (function ensureCssOnce() {
+    var STYLE_ID = "db-a11y-style";
+    if (document.getElementById(STYLE_ID)) return;
+    var css = "\n" +
+      ".db-popup-dateheader{\n" +
+      "  font-size:12px;\n" +
+      "  font-weight:bold;\n" +
+      "  display:block;\n" +
+      "  text-align:center;\n" +
+      "  margin:10px auto;\n" +
+      "  color:#333333;\n" +
+      "  line-height:1.3;\n" +
+      "  font-family:Helvetica, Arial, sans-serif;\n" +
+      "  text-shadow:none;\n" +
+      "}\n";
+    var s = document.createElement('style');
+    s.id = STYLE_ID; s.type = 'text/css';
+    try { s.appendChild(document.createTextNode(css)); } catch (e) { s.styleSheet.cssText = css; }
+    document.head.appendChild(s);
+  })();
+
+  // Trim text, collapsing whitespace
+  function cleanText(str) {
+    return (str || "").replace(/\s+/g, " ").trim();
+  }
+
+  // Find visible associated <label for="id"> text
+  function getAssociatedLabelText($input) {
+    var id = $input.attr("id");
+    if (!id) return "";
+    var $lbl = $('label[for="' + id + '"]').first();
+    return cleanText($lbl.text());
+  }
+
+  // Compute best aria-label for the original input
+  function computeAriaLabel($input) {
+    // 1) data-aria-label / data-ariaLabel
+    var fromData = $input.attr("data-aria-label") || $input.data("ariaLabel");
+    if (fromData) return cleanText(fromData);
+
+    // 2) explicit <label for="...">
+    var fromLabel = getAssociatedLabelText($input);
+    if (fromLabel) return fromLabel;
+
+    // 3) placeholder
+    var fromPh = $input.attr("placeholder");
+    if (fromPh) return cleanText(fromPh);
+
+    // 4) fallback
+    return "Date";
+  }
+
+  // Optionally append a hint in parentheses, e.g., (DD/MM/YYYY)
+  function appendHint(base, hint) {
+    var h = cleanText(hint);
+    return h ? (base + " (" + h + ")") : base;
+  }
+
+  // ---- widget extension ----------------------------------------------------
+
+  $.widget(namespace + ".datebox", BaseWidget, {
+    _create: function () {
+      this._super();
+
+      var w = this;
+      var $input = $(w.element); // original input the widget enhances
+
+      // 1) Ensure the MAIN INPUT has an accessible name
+      if (!$input.attr("aria-label") && !$input.attr("aria-labelledby")) {
+        var labelText = computeAriaLabel($input);
+        var hint = $input.attr("data-aria-hint") || $input.data("ariaHint"); // optional format hint
+        $input.attr("aria-label", appendHint(labelText, hint));
+      }
+
+      // It’s a popup calendar in your setup, so these are reasonable ARIA affordances:
+      // (safe no-ops if something else manages them later)
+      if (!$input.attr("aria-haspopup")) $input.attr("aria-haspopup", "dialog");
+      if (!$input.attr("autocomplete"))  $input.attr("autocomplete", "off");
+
+      // 2) OPTIONAL: Label sub-inputs inside the popup if present (flipbox/slidebox/etc.)
+      // For calbox, there typically aren't text/number inputs—this is a no-op and harmless.
+      // We still keep your original idea so it also helps for non-calbox modes.
+      var $popupContent = $(w.d.intHTML || []);
+      var partLabels = ["Month", "Day", "Year"]; // minimal pass; can be localized if needed
+
+      $popupContent
+        .find("input")
+        .filter(function () {
+          return this.type === "number" || this.type === "text";
+        })
+        .each(function (i) {
+          var el = this;
+          if (!el.getAttribute("aria-label")) {
+            var txt = partLabels[i] || ("Part " + (i + 1));
+            el.setAttribute("aria-label", txt);
+          }
+        });
+
+      // Normalize headings inside the DateBox popup to avoid skipped heading levels
+      // Replace h4/h5/h6 with non-heading containers, preserving class/style/content and add our class
+      function normalizePopupHeadings(root) {
+        $(root || document).find('.ui-datebox-container').each(function(){
+          $(this).find('h4, h5, h6').each(function(){
+            var $h = $(this);
+            var $div = $('<div/>').html($h.html());
+            var cls = (($h.attr('class')||'') + ' db-popup-dateheader').trim();
+            var sty = $h.attr('style');
+            if (cls) $div.attr('class', cls);
+            if (sty) $div.attr('style', sty);
+            $h.replaceWith($div);
+          });
+        });
+      }
+      normalizePopupHeadings($popupContent);
+
+      // 3) OPTIONAL nicety: if there is a visible calendar trigger button next to the input,
+      // give it a useful aria-label (best-effort; selectors differ by theme/markup).
+      // This won’t throw if it doesn’t exist.
+      try {
+        var $wrap = $input.closest(".ui-input-has-clear, .ui-field-contain, .ui-input-text, .dbWrapper, .ui-body");
+        var $btn  = $wrap.find("a, button").filter(function () {
+          var $t = $(this);
+          var roleBtn = ($t.attr("role") || "").toLowerCase() === "button";
+          var isBtn   = this.tagName === "BUTTON" || roleBtn || $t.hasClass("ui-btn") || $t.hasClass("ui-btn-icon-notext");
+          // try to avoid clear buttons
+          var notClear = !$t.hasClass("ui-input-clear");
+          return isBtn && notClear;
+        }).first();
+
+        if ($btn.length && !$btn.attr("aria-label")) {
+          var mainName = $input.attr("aria-label") || getAssociatedLabelText($input) || "Date";
+          $btn.attr("aria-label", "Open calendar for " + mainName);
+        }
+      } catch (e) {
+        // fail silently
+      }
+    }
+  });
+
+  // ---- global minor a11y cleanups (non-DateBox specific) -------------------
+  // Remove redundant title attributes from jQuery Mobile clear buttons
+  function stripClearButtonTitles(root) {
+    $(root || document).find('a.ui-input-clear').each(function () {
+      if (this.hasAttribute('title')) this.removeAttribute('title');
+    });
+  }
+
+  // Ensure DateBox header uses div with our style class; tolerate prior transforms
+  function styleDateboxHeaders(root) {
+    var $ctx = $(root || document);
+    $ctx.find('.ui-datebox-header h1, .ui-datebox-header h2, .ui-datebox-header h3, .ui-datebox-header h4, .ui-datebox-header h5, .ui-datebox-header h6, .ui-datebox-header .datebox-heading')
+      .each(function(){
+        var $h = $(this);
+        if (/^H[1-6]$/.test(this.tagName)) {
+          var $div = $('<div/>').html($h.html());
+          var cls = (($h.attr('class')||'') + ' db-popup-dateheader').trim();
+          var sty = $h.attr('style');
+          if (cls) $div.attr('class', cls);
+          if (sty) $div.attr('style', sty);
+          try {
+            $h.replaceWith($div);
+          } catch (e) {
+            // Fallback: if replacement fails (e.g., tool overlays), neutralize heading semantics
+            $h.attr('role', 'presentation').addClass('db-popup-dateheader');
+          }
+        } else {
+          $h.addClass('db-popup-dateheader');
+        }
+      });
+
+    // Final safety: if any headings still remain inside the header, strip semantics
+    $ctx.find('.ui-datebox-header h1, .ui-datebox-header h2, .ui-datebox-header h3, .ui-datebox-header h4, .ui-datebox-header h5, .ui-datebox-header h6')
+      .attr('role', 'presentation')
+      .removeAttr('aria-level');
+  }
+
+  function retryStyleHeaders(context, tries) {
+    tries = tries || 6; // run for ~300ms
+    styleDateboxHeaders(context);
+    if (tries > 1) setTimeout(function(){ retryStyleHeaders(context, tries - 1); }, 50);
+  }
+
+  // Apply on common lifecycle events
+  $(document)
+    .on('pagecreate pagecontainershow', function (e) { stripClearButtonTitles(e.target); styleDateboxHeaders(e.target); })
+    // Also normalize DateBox headings after the widget builds/opens
+    .on('dateboxaftercreate dateboxopen', function (e) {
+      // Replace headings and apply our styling class when popup is present
+      retryStyleHeaders('.ui-popup-active');
+      retryStyleHeaders(e.target);
+      // In case DOM is injected after open, run once more at end of tick
+      setTimeout(function(){ styleDateboxHeaders('.ui-popup-active'); }, 0);
+    })
+    // Hook core jQM popup event too for robustness
+    .on('popupafteropen', function(){ retryStyleHeaders('.ui-popup-active'); });
+
+  // Listen to DateBox internal events to catch header redraws when month/day changes
+  $(document).on('datebox', function (e, payload) {
+    try {
+      if (!payload || !payload.method) return;
+      switch (payload.method) {
+        case 'displayChange':
+        case 'refresh':
+        case 'postrefresh':
+          retryStyleHeaders('.ui-popup-active');
+          break;
+      }
+    } catch (_) {}
+  });
+
+  // A11y: Announce value changes when +/- buttons are clicked
+  // This uses event delegation and fires after the click to read the new value
+  $(document).on('click', '.ui-datebox-datebox-button', function() {
+    var $btn = $(this);
+    var ariaLabel = $btn.attr('aria-label') || '';
+    var isPlus = ariaLabel.toLowerCase().indexOf('plus') > -1;
+    var isMinus = ariaLabel.toLowerCase().indexOf('minus') > -1;
+    
+    if (isPlus || isMinus) {
+      // Extract the part name (Month, Day, Year) from aria-label
+      var partName = ariaLabel.replace(/\s*(plus|minus)\s*/gi, '').trim();
+      
+      // Find the input in the same column
+      var $col = $btn.parent();
+      var $input = $col.find('input').first();
+      
+      // Announce the new value after a short delay
+      setTimeout(function() {
+        var newValue = $input.length ? $input.val() : '';
+        if (newValue && partName && typeof selfservice !== 'undefined' && selfservice.announceToScreenReader) {
+          var action = isPlus ? 'increased to' : 'decreased to';
+          selfservice.announceToScreenReader(partName + ' ' + action + ' ' + newValue);
+        }
+      }, 150);
+    }
+  });
+
+  // Also watch for dynamically added inputs
+  try {
+    new MutationObserver(function (mutations) {
+      for (var i = 0; i < mutations.length; i++) {
+        var m = mutations[i];
+        for (var j = 0; j < (m.addedNodes || []).length; j++) {
+          var n = m.addedNodes[j];
+          if (n && n.nodeType === 1) {
+            if (n.classList && n.classList.contains('ui-input-clear')) {
+              n.removeAttribute('title');
+            } else if (n.querySelector) {
+              // clear button cleanup
+              stripClearButtonTitles(n);
+              // datebox heading normalization
+              if (n.querySelector && (n.querySelector('.ui-datebox-header h4, .ui-datebox-header h5, .ui-datebox-header h6, .ui-datebox-header .datebox-heading') || n.classList.contains('ui-datebox-header'))) {
+                styleDateboxHeaders(n);
+              }
+            }
+          }
+        }
+      }
+    }).observe(document.body, { childList: true, subtree: true });
+  } catch (e) { /* ignore */ }
+
+  // ---- KEYBOARD ACCESSIBILITY FOR DATE PICKERS ----
+
+  // Ensure ARIA live region exists for screen reader announcements
+  function ensureLiveRegion() {
+    var $region = $('#datebox-sr-announce');
+    if (!$region.length) {
+      $region = $('<div id="datebox-sr-announce" role="status" aria-live="polite" aria-atomic="true" ' +
+        'style="position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden;"></div>');
+      $('body').append($region);
+    }
+    return $region;
+  }
+
+  // Announce date picker popup opening to screen reader users
+  // Only announces if there's an actual visible datebox container with spinner buttons
+  function announceDatePickerOpen() {
+    // Guard: Only announce if there's a visible datebox popup with actual date picker controls
+    var $visibleDatebox = $('.ui-datebox-container:visible');
+    
+    // Also check popup active containers
+    if (!$visibleDatebox.length) {
+      $visibleDatebox = $('.ui-popup-active .ui-datebox-container');
+    }
+    
+    // Final check: must have datebox-specific elements (spinner buttons or date inputs)
+    if (!$visibleDatebox.length) {
+      return; // No visible datebox, don't announce
+    }
+    
+    // Verify it's actually a datebox by checking for datebox-specific elements
+    var hasDateboxElements = $visibleDatebox.find('.ui-datebox-datebox-button, .ui-datebox-controls, input[type="number"]').length > 0;
+    if (!hasDateboxElements) {
+      return; // Not a real datebox popup
+    }
+    
+    var $region = ensureLiveRegion();
+    $region.empty();
+    setTimeout(function() {
+      // Double-check datebox is still visible before announcing
+      var $stillVisible = $('.ui-datebox-container:visible, .ui-popup-active .ui-datebox-container');
+      var stillHasElements = $stillVisible.find('.ui-datebox-datebox-button, .ui-datebox-controls, input[type="number"]').length > 0;
+      if ($stillVisible.length && stillHasElements) {
+        $region.text('Date picker calendar opened. Use Tab to move between fields, Space bar or Enter to activate buttons, Escape to close.');
+      }
+    }, 100);
+  }
+
+  // Enable Space bar on date input fields AND calendar icon buttons
+  function enableSpaceBarOnDateInputs(ctx) {
+    var $inputs = $(ctx || document).find("input[data-role='datebox']");
+    
+    $inputs.each(function () {
+      var $input = $(this);
+      
+      // 1. SPACE BAR ON INPUT FIELD
+      if (!$input.data('a11y-spacebar-enabled')) {
+        $input.data('a11y-spacebar-enabled', true);
+        
+        $input.on('keydown.dateboxA11y', function(e) {
+          var k = e.which || e.keyCode;
+          
+          if (k === 32) { // Space bar
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Find calendar button
+            var $btn = $input.parent().find('a.ui-btn, button.ui-btn').first();
+            if (!$btn.length) $btn = $input.siblings('a.ui-btn, button.ui-btn').first();
+            if (!$btn.length) $btn = $input.closest('.ui-input-text, .ui-field-contain, div').find('a.ui-btn, button.ui-btn').first();
+            
+            if ($btn.length) {
+              $btn[0].click();
+            }
+          }
+        });
+      }
+      
+      // 2. SPACE BAR ON CALENDAR ICON BUTTON
+      var $btn = $input.parent().find('a.ui-btn, button.ui-btn').first();
+      if (!$btn.length) $btn = $input.siblings('a.ui-btn, button.ui-btn').first();
+      if (!$btn.length) $btn = $input.closest('.ui-input-text, .ui-field-contain, div').find('a.ui-btn, button.ui-btn').first();
+      
+      if ($btn.length && !$btn.data('a11y-spacebar-enabled')) {
+        $btn.data('a11y-spacebar-enabled', true);
+        
+        $btn.on('keydown.dateboxA11y', function(e) {
+          var k = e.which || e.keyCode;
+          
+          if (k === 32) { // Space bar
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            this.click();
+            return false;
+          }
+        });
+      }
+    });
+  }
+
+  // Fix redundant DateBox title and add proper ARIA labeling
+  function fixDateboxTitles(ctx) {
+    $(ctx || document).find("input[data-role='datebox']").each(function () {
+      var $input = $(this);
+      var $btn = $input.closest(".ui-input-text, .ui-field-contain, div")
+        .find("a.ui-btn, button.ui-btn")
+        .first();
+
+      if ($btn.length) {
+        $btn.removeAttr("title");
+        var labelText = $("label[for='" + $input.attr("id") + "']").text().trim() || "date field";
+        if (!$btn.attr("aria-label")) {
+          $btn.attr("aria-label", "Open date picker for " + labelText);
+        }
+      }
+    });
+  }
+
+  // Make ALL interactive elements inside calendar popup respond to Space bar AND Enter key
+  // This includes: +/- spinner buttons, Set Date, Cancel, Today, etc.
+  // Using multiple selectors to catch all button variants used by JTSage DateBox
+  var dateboxButtonSelectors = [
+    '.ui-datebox-container a',
+    '.ui-datebox-container button', 
+    '.ui-datebox-container .ui-btn',
+    '.ui-datebox-container .ui-datebox-datebox-button',
+    '.ui-datebox-container .ui-btn-icon-notext',
+    '.ui-datebox-container .ui-icon-plus',
+    '.ui-datebox-container .ui-icon-minus',
+    '.ui-datebox-container [role="button"]'
+  ].join(', ');
+
+  // Track the currently active datebox input ID for focus restoration
+  var activeInputId = null;
+  
+  // When a datebox opens, save which input it belongs to
+  $(document).on('dateboxopen', function(e) {
+    var $input = $(e.target);
+    if ($input.attr('data-role') === 'datebox') {
+      activeInputId = $input.attr('id');
+    }
+  });
+
+  // Helper to find spinner button in a specific widget's container
+  function findSpinnerInWidget(inputId, field, amount) {
+    if (!inputId) return null;
+    
+    var $input = $('#' + inputId);
+    if (!$input.length) return null;
+    
+    var widget = $input.data('mobile-datebox') || $input.data('jtsage-datebox');
+    if (!widget || !widget.d) return null;
+    
+    var $container = widget.d.mainWrap || widget.d.intHTML;
+    if (!$container || !$container.length) return null;
+    
+    // Find the button with matching field and amount in THIS widget's container
+    var $btn = $container.find('.ui-datebox-datebox-button').filter(function() {
+      return $(this).data('field') === field && $(this).data('amount') === amount;
+    }).first();
+    
+    return $btn.length ? $btn : null;
+  }
+
+  // Track pending focus restoration to prevent conflicts
+  var pendingFocusRestore = null;
+  
+  // Aggressive focus restoration with multiple attempts
+  function restoreFocusToSpinner(field, amount, maxAttempts) {
+    maxAttempts = maxAttempts || 10;
+    var attempts = 0;
+    
+    function tryRestoreFocus() {
+      attempts++;
+      
+      // First ensure spinners are set up
+      makeSpinnersFocusable(document);
+      bindSpinnerKeyboardHandlers();
+      
+      // Find the button with matching field and amount
+      var $newBtn = null;
+      
+      // Try the active input's widget first
+      if (activeInputId) {
+        $newBtn = findSpinnerInWidget(activeInputId, field, amount);
+      }
+      
+      // Fallback: search all visible containers
+      if (!$newBtn || !$newBtn.length) {
+        $newBtn = $('.ui-datebox-container:visible .ui-datebox-datebox-button').filter(function() {
+          return $(this).data('field') === field && $(this).data('amount') === amount;
+        }).first();
+      }
+      
+      if ($newBtn && $newBtn.length) {
+        // Clear any selection that might interfere with focus
+        try { window.getSelection().removeAllRanges(); } catch(e) {}
+        
+        // Focus the button
+        $newBtn[0].focus();
+        
+        // Verify focus was set
+        if (document.activeElement === $newBtn[0]) {
+          pendingFocusRestore = null;
+          return; // Success!
+        }
+      }
+      
+      // Try again if not exceeded max attempts
+      if (attempts < maxAttempts) {
+        pendingFocusRestore = setTimeout(tryRestoreFocus, 30);
+      } else {
+        pendingFocusRestore = null;
+      }
+    }
+    
+    // Clear any pending focus restoration
+    if (pendingFocusRestore) {
+      clearTimeout(pendingFocusRestore);
+    }
+    
+    // Start after a short delay to let DOM refresh complete
+    pendingFocusRestore = setTimeout(tryRestoreFocus, 50);
+  }
+  
+  // Special handler for +/- spinner buttons using native event listener on capture phase
+  // This ensures we catch the event before any other handler can stop propagation
+  document.addEventListener('keydown', function(e) {
+    var k = e.which || e.keyCode;
+    
+    // Only handle Space bar (32) or Enter (13)
+    if (k !== 32 && k !== 13) return;
+    
+    // Check if target is a datebox spinner button
+    var btn = e.target;
+    var $btn = $(btn);
+    
+    // Check if we're inside a datebox container
+    var $container = $btn.closest('.ui-datebox-container');
+    if (!$container.length) return;
+    
+    // Check multiple ways to identify spinner buttons
+    var isSpinnerButton = $btn.hasClass('ui-datebox-datebox-button') ||
+      $btn.hasClass('ui-icon-plus') || 
+      $btn.hasClass('ui-icon-minus') ||
+      ($btn.hasClass('ui-btn-icon-notext') && $btn.data('field') !== undefined);
+    
+    if (!isSpinnerButton) return;
+    
+    // MUST prevent default immediately to stop space from scrolling/other actions
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    
+    // Save the button's identity (NOT the element reference, because refresh rebuilds DOM)
+    var buttonField = $btn.data('field');
+    var buttonAmount = $btn.data('amount');
+    
+    // If field/amount not defined, this might not be a spinner button
+    if (buttonField === undefined || buttonAmount === undefined) {
+      // Try clicking it anyway
+      $btn.trigger('click');
+      return false;
+    }
+    
+    // Find the correct widget and save its input ID for later focus restoration
+    var widget = null;
+    var ownerInputId = activeInputId; // Use the globally tracked active input
+    
+    // Try to find widget from the container
+    $('input[data-role="datebox"]').each(function() {
+      var $input = $(this);
+      var w = $input.data('mobile-datebox') || $input.data('jtsage-datebox');
+      if (!w || !w.d) return;
+      
+      // Check if this widget's popup contains our button
+      var popupWrap = w.d.mainWrap;
+      if (popupWrap && popupWrap.length) {
+        if ($.contains(popupWrap[0], btn) || popupWrap[0] === $container[0]) {
+          widget = w;
+          ownerInputId = $input.attr('id');
+          activeInputId = ownerInputId;
+          return false; // break
+        }
+      }
+      
+      var intHTML = w.d.intHTML;
+      if (intHTML && intHTML.length) {
+        if ($.contains(intHTML[0], btn)) {
+          widget = w;
+          ownerInputId = $input.attr('id');
+          activeInputId = ownerInputId;
+          return false; // break
+        }
+      }
+    });
+    
+    if (widget && widget._offset) {
+      // Call the widget's internal offset method to change the value
+      widget._dbox_delta = buttonAmount > 0 ? 1 : -1;
+      widget._offset(buttonField, buttonAmount);
+      
+      // CRITICAL: DateBox refresh() rebuilds the DOM, so original button is gone
+      // Use aggressive focus restoration to find and focus the NEW button
+      restoreFocusToSpinner(buttonField, buttonAmount, 15);
+      
+      return false;
+    }
+    
+    // Fallback: simulate click and then restore focus
+    try {
+      if (typeof MouseEvent === 'function') {
+        var mouseEvent = new MouseEvent('click', {
+          bubbles: true,
+          cancelable: true,
+          view: window
+        });
+        btn.dispatchEvent(mouseEvent);
+      } else {
+        $btn.trigger('vclick');
+        $btn.trigger('click');
+      }
+    } catch (ex) {
+      $btn.trigger('click');
+    }
+    
+    // Restore focus after click
+    restoreFocusToSpinner(buttonField, buttonAmount, 15);
+    
+    return false;
+  }, true); // Use capture phase
+
+  // General handler for other datebox buttons (Set Date, Cancel, etc.)
+  $(document).on('keydown.dateboxA11y', dateboxButtonSelectors, function(e) {
+    var k = e.which || e.keyCode;
+    
+    // Skip if already handled by spinner handler
+    if ($(this).hasClass('ui-datebox-datebox-button')) {
+      return;
+    }
+    
+    // Space bar (32) or Enter (13)
+    if (k === 32 || k === 13) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      
+      var btn = this;
+      var $btn = $(btn);
+      
+      setTimeout(function() {
+        // Create and dispatch a real mouse event that will bubble
+        try {
+          if (typeof MouseEvent === 'function') {
+            var mouseEvent = new MouseEvent('click', {
+              bubbles: true,
+              cancelable: true,
+              view: window
+            });
+            btn.dispatchEvent(mouseEvent);
+          } else {
+            var evt = document.createEvent('MouseEvents');
+            evt.initMouseEvent('click', true, true, window, 0, 0, 0, 0, 0, false, false, false, false, 0, null);
+            btn.dispatchEvent(evt);
+          }
+        } catch (ex) {
+          $btn.trigger('vclick');
+          $btn.trigger('click');
+        }
+      }, 0);
+      
+      return false;
+    }
+  });
+
+  // Suppress keypress to prevent Space bar from scrolling
+  $(document).on('keypress.dateboxA11y', dateboxButtonSelectors, function(e) {
+    var k = e.which || e.keyCode;
+    if (k === 32 || k === 13) {
+      e.preventDefault();
+      e.stopPropagation();
+      return false;
+    }
+  });
+
+  // Ensure spinner buttons are focusable when datebox opens
+  function makeSpinnersFocusable(container) {
+    var $container = $(container || document);
+    var $box = $container.find('.ui-datebox-container');
+    if (!$box.length) $box = $container.filter('.ui-datebox-container');
+    if (!$box.length) $box = $('.ui-datebox-container'); // Fallback to any visible container
+    
+    $box.each(function() {
+      var $thisBox = $(this);
+      
+      // Skip if already processed recently (avoid infinite loops)
+      if ($thisBox.data('spinners-init-time')) {
+        var lastInit = $thisBox.data('spinners-init-time');
+        if (Date.now() - lastInit < 50) return; // Reduced from 100ms to 50ms
+      }
+      $thisBox.data('spinners-init-time', Date.now());
+      
+      // Find all spinner buttons (+/- buttons) using multiple selectors
+      var $spinners = $thisBox.find('.ui-datebox-datebox-button');
+      
+      // Also try alternative selectors if primary didn't work
+      if (!$spinners.length) {
+        $spinners = $thisBox.find('.ui-btn.ui-btn-icon-notext, .ui-icon-plus, .ui-icon-minus');
+      }
+      
+      $spinners.each(function() {
+        var $btn = $(this);
+        var btn = this;
+        
+        // Force focusable
+        $btn.attr('tabindex', '0');
+        $btn.attr('role', 'button');
+        
+        // Ensure the button can receive focus by making it a focusable element
+        if (btn.tagName !== 'BUTTON' && btn.tagName !== 'A') {
+          // If it's a div, we need to ensure it's in the tab order
+          $btn.css('outline', ''); // Allow default outline for focus visibility
+        }
+        
+        // Add visual feedback for focus
+        $btn.off('focus.a11yVisual').on('focus.a11yVisual', function() {
+          $(this).addClass('ui-focus');
+        });
+        $btn.off('blur.a11yVisual').on('blur.a11yVisual', function() {
+          $(this).removeClass('ui-focus');
+        });
+      });
+      
+      // Also ensure Set Date and other control buttons are focusable
+      $thisBox.find('.ui-datebox-controls .ui-btn, .ui-datebox-controls a, .ui-datebox-controls button').each(function() {
+        var $btn = $(this);
+        $btn.attr('tabindex', '0');
+      });
+    });
+  }
+
+  // Bind keyboard handlers to spinner buttons after DOM refresh
+  // This is CRITICAL - DateBox rebuilds DOM after each value change, so handlers must be re-bound
+  function bindSpinnerKeyboardHandlers() {
+    var $spinners = $('.ui-datebox-container:visible .ui-datebox-datebox-button');
+    
+    $spinners.each(function() {
+      var $btn = $(this);
+      
+      // Skip if already bound (check marker)
+      if ($btn.data('keyboard-handler-bound')) return;
+      $btn.data('keyboard-handler-bound', true);
+      
+      // Ensure button is focusable
+      $btn.attr('tabindex', '0').attr('role', 'button');
+      
+      // Add aria-label based on position and field type
+      if (!$btn.attr('aria-label')) {
+        var field = $btn.data('field');
+        var amount = $btn.data('amount');
+        var partNames = { 0: 'Month', 1: 'Day', 2: 'Year' };
+        var partName = partNames[field] || 'Value';
+        var action = amount > 0 ? 'plus' : 'minus';
+        $btn.attr('aria-label', partName + ' ' + action);
+      }
+    });
+  }
+
+  // Fix Tab navigation from year field to "Set Date" button
+  $(document).on('keydown.dateboxA11y', '.ui-datebox-container input[type="text"], .ui-datebox-container input[type="number"]', function(e) {
+    var k = e.which || e.keyCode;
+    
+    if (k === 9 && !e.shiftKey) { // Tab key (forward)
+      var $allInputs = $(this).closest('.ui-datebox-container').find('input[type="text"], input[type="number"]').filter(':visible');
+      var currentIndex = $allInputs.index(this);
+      
+      // If this is the last input field (likely Year)
+      if (currentIndex === $allInputs.length - 1) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        
+        var $container = $(this).closest('.ui-datebox-container');
+        var $setDateBtn = $container.find('a:contains("Set Date"), button:contains("Set Date")').first();
+        
+        // Fallback: find positive action button
+        if (!$setDateBtn.length) {
+          $setDateBtn = $container.find('a.ui-btn, button.ui-btn').filter(function() {
+            var text = $(this).text().trim().toLowerCase();
+            return text !== 'cancel' && text !== 'today' && text !== 'clear';
+          }).first();
+        }
+        
+        if ($setDateBtn.length) {
+          setTimeout(function() {
+            $setDateBtn.focus();
+          }, 10);
+        }
+        
+        return false;
+      }
+    }
+  });
+
+  // ============================================================================
+  // FOCUS MANAGEMENT AFTER DATE PICKER CLOSES (A11y)
+  // When user clicks "Set Date", focus moves to the next form field
+  // ============================================================================
+  
+  // Store reference to the currently active datebox input (on window for global access)
+  window._dateboxLastInputId = null;
+  window._dateboxFocusTimeout = null;
+  
+  // Function to get the next focusable field after a datebox input
+  function getNextFieldAfterDatebox(currentInputId) {
+    if (!currentInputId) return null;
+    
+    // Use attribute selector to handle IDs with special characters
+    var $currentInput = $('[id="' + currentInputId + '"]');
+    if (!$currentInput.length) return null;
+    
+    // Strategy 1: If it's a StartDate field, next is the EndDate field
+    if (currentInputId.indexOf('StartDate') > -1) {
+      var endDateId = currentInputId.replace('StartDate', 'EndDate');
+      var endDateField = document.getElementById(endDateId);
+      if (endDateField) return endDateField;
+    }
+    
+    // Strategy 2: If it's an EndDate field, find the Name field
+    if (currentInputId.indexOf('EndDate') > -1) {
+      var nameField = document.getElementById('field_BothNamesID');
+      if (nameField) return nameField;
+    }
+    
+    // Strategy 3: Find next focusable input in the form (generic approach)
+    var $form = $currentInput.closest('form, .ui-content, [data-role="page"]');
+    var $allInputs = $form.find('input:visible, select:visible, textarea:visible')
+      .not(':disabled')
+      .not('[tabindex="-1"]')
+      .not('.ui-datebox-container *')
+      .not('[data-role="datebox"]');
+    
+    var $dateboxInputs = $form.find('input[data-role="datebox"]:visible').not($currentInput);
+    $allInputs = $allInputs.add($dateboxInputs);
+    
+    $allInputs = $allInputs.sort(function(a, b) {
+      return (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) ? -1 : 1;
+    });
+    
+    var currentIndex = -1;
+    $allInputs.each(function(i) {
+      if (this.id === currentInputId || this === $currentInput[0]) {
+        currentIndex = i;
+        return false;
+      }
+    });
+    
+    if (currentIndex > -1 && currentIndex < $allInputs.length - 1) {
+      return $allInputs.eq(currentIndex + 1)[0];
+    }
+    
+    return null;
+  }
+  
+  // Aggressive focus setter - keeps trying until it succeeds or times out
+  function forceSetFocus(targetElement, maxAttempts) {
+    if (!targetElement) return;
+    
+    maxAttempts = maxAttempts || 20;
+    var attempts = 0;
+    var focusSucceeded = false;
+    
+    function tryFocus() {
+      attempts++;
+      try {
+        targetElement.focus();
+        // Verify focus was set
+        if (document.activeElement === targetElement) {
+          focusSucceeded = true;
+          // Announce to screen reader
+          if (typeof selfservice !== 'undefined' && selfservice.announceToScreenReader) {
+            var label = $(targetElement).attr('aria-label') || 
+                        $(targetElement).attr('placeholder') || 
+                        $('label[for="' + targetElement.id + '"]').text() ||
+                        'Next field';
+            selfservice.announceToScreenReader(label.trim() + ' field');
+          }
+          return;
+        }
+      } catch(e) {}
+      
+      // Try again if not exceeded max attempts
+      if (attempts < maxAttempts && !focusSucceeded) {
+        setTimeout(tryFocus, 50);
+      }
+    }
+    
+    // Start immediately
+    tryFocus();
+  }
+  
+  // Handle "Set Date" button click - set focus to next field
+  $(document).on('click.dateboxFocus', '.ui-datebox-controls a, .ui-datebox-controls button, .ui-datebox-controls .ui-btn', function(e) {
+    var btnText = ($(this).text() || '').trim().toLowerCase();
+    
+    // Check if this is a "Set Date" or "OK" type button (not Cancel)
+    if (btnText === 'set date' || btnText === 'set' || btnText === 'ok' || btnText === 'done') {
+      if (window._dateboxFocusTimeout) {
+        clearTimeout(window._dateboxFocusTimeout);
+      }
+      
+      var nextField = getNextFieldAfterDatebox(window._dateboxLastInputId);
+      
+      if (nextField) {
+        window._dateboxFocusTimeout = setTimeout(function() {
+          forceSetFocus(nextField, 30);
+        }, 100);
+      }
+    }
+  });
+
+  // Capture which datebox input is being opened when calendar button is clicked
+  $(document).on('click.dateboxCapture', 'a.ui-btn, button.ui-btn', function(e) {
+    var $btn = $(this);
+    var $dateInput = $btn.siblings("input[data-role='datebox']").first();
+    if (!$dateInput.length) {
+      $dateInput = $btn.parent().find("input[data-role='datebox']").first();
+    }
+    if (!$dateInput.length) {
+      $dateInput = $btn.closest('.ui-input-text, .ui-field-contain').find("input[data-role='datebox']").first();
+    }
+    
+    if ($dateInput.length && $dateInput.attr('id')) {
+      window._dateboxLastInputId = $dateInput.attr('id');
+    }
+  });
+
+  // Initialize Space bar handling and handle date picker open/close events
+  $(document)
+    .on('pagecreate.dateboxA11y pagecontainershow.dateboxA11y', function (e) {
+      enableSpaceBarOnDateInputs(e.target);
+      fixDateboxTitles(e.target);
+    })
+    .on('dateboxaftercreate.dateboxA11y', function (e) {
+      enableSpaceBarOnDateInputs(e.target);
+      fixDateboxTitles(e.target);
+    })
+    .on('dateboxopen.dateboxA11y', function (e) {
+      // Verify this is actually a datebox input triggering the event
+      var $target = $(e.target);
+      var isActualDatebox = $target.attr('data-role') === 'datebox' ||
+                            $target.hasClass('hasDatebox') ||
+                            $target.data('mobile-datebox') ||
+                            $target.data('jtsage-datebox');
+      
+      if (!isActualDatebox) {
+        return; // Not a real datebox event, skip
+      }
+      
+      // Store the ID of the input that opened the datebox (for focus management)
+      if ($target.is("input[data-role='datebox']")) {
+        window._dateboxLastInputId = e.target.id;
+      } else {
+        var $input = $target.find("input[data-role='datebox']").first();
+        if ($input.length) {
+          window._dateboxLastInputId = $input.attr('id');
+        }
+      }
+      
+      enableSpaceBarOnDateInputs(e.target);
+      announceDatePickerOpen();
+      setTimeout(function() {
+        makeSpinnersFocusable(document);
+        bindSpinnerKeyboardHandlers();
+      }, 50);
+      setTimeout(function() {
+        makeSpinnersFocusable(document);
+        bindSpinnerKeyboardHandlers();
+      }, 200);
+    })
+    .on('popupafteropen.dateboxA11y', function (e) {
+      var $popup = $(e.target);
+      // Only process if this popup contains a datebox (is a date picker popup)
+      var isDateboxPopup = $popup.find('.ui-datebox-container').length > 0 ||
+                           $popup.hasClass('ui-datebox-container') ||
+                           ($popup.attr('id') && $popup.attr('id').indexOf('datebox') > -1);
+      
+      if (isDateboxPopup) {
+        enableSpaceBarOnDateInputs(e.target);
+        // Track input ID if not already set
+        if (!window._dateboxLastInputId) {
+          var $activeInput = $("input[data-role='datebox']:focus, input[data-role='datebox'].ui-focus");
+          if ($activeInput.length) {
+            window._dateboxLastInputId = $activeInput.attr('id');
+          }
+        }
+        // Don't announce here - dateboxopen event already handles it
+        // Ensure spinners are focusable and have keyboard handlers
+        setTimeout(function() {
+          makeSpinnersFocusable(document);
+          bindSpinnerKeyboardHandlers();
+        }, 50);
+        setTimeout(function() {
+          makeSpinnersFocusable(document);
+          bindSpinnerKeyboardHandlers();
+        }, 200);
+      }
+    });
+
+  // When datebox popup closes, focus the next field
+  $(document).on('popupafterclose.dateboxFocus', function(e) {
+    var $popup = $(e.target);
+    var isDateboxPopup = $popup.find('.ui-datebox-container').length > 0 || 
+                         ($popup.attr('id') && $popup.attr('id').indexOf('datebox') > -1);
+    
+    if (isDateboxPopup && window._dateboxLastInputId) {
+      var nextField = getNextFieldAfterDatebox(window._dateboxLastInputId);
+      
+      if (nextField) {
+        if (window._dateboxFocusTimeout) {
+          clearTimeout(window._dateboxFocusTimeout);
+        }
+        
+        // Use aggressive focus setter after a delay to let jQuery Mobile's focus management complete
+        window._dateboxFocusTimeout = setTimeout(function() {
+          forceSetFocus(nextField, 30);
+        }, 150);
+      }
+      
+      // Clear the stored input ID after a delay
+      setTimeout(function() {
+        window._dateboxLastInputId = null;
+      }, 1000);
+    }
+  });
+
+  // Intercept when focus lands on header/footer/logo after datebox closes
+  // This catches cases where jQuery Mobile's focus restoration goes to the wrong place
+  var lastFocusRedirectTime = 0;
+  $(document).on('focusin.dateboxFocus', function(e) {
+    if (!window._dateboxLastInputId) return;
+    
+    var now = Date.now();
+    var $focused = $(e.target);
+    
+    // Check if focus went to header, footer, logo, or navigation elements
+    var isWrongElement = $focused.closest('[role="contentinfo"], [role="banner"], footer, header, nav, .ss-footer-stripe, .ui-footer, .ui-header, #ss-header-box, #ss-footer-box').length > 0;
+    
+    var isFirstElement = $focused.closest('.ui-header').length > 0 || 
+                         $focused.attr('id') === 'ss-header-logo' ||
+                         $focused.hasClass('ui-header');
+    
+    var isFocusLost = e.target === document.body || $focused.is('body');
+    
+    if ((isWrongElement || isFirstElement || isFocusLost) && (now - lastFocusRedirectTime > 100)) {
+      lastFocusRedirectTime = now;
+      
+      var nextField = getNextFieldAfterDatebox(window._dateboxLastInputId);
+      if (nextField && document.activeElement !== nextField) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        setTimeout(function() {
+          forceSetFocus(nextField, 10);
+        }, 10);
+        
+        return false;
+      }
+    }
+  });
+
+})(window, document, window.jQuery);

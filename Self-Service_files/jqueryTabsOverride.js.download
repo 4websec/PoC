@@ -1,0 +1,24 @@
+// 		The following code is a fix for the jqm tabs that is referenced by the following url - https://github.com/jquery/jquery-mobile/issues/7169
+//		This code should be removed after upgrading to jqm 1.5
+		$.widget( "ui.tabs", $.ui.tabs, {
+
+		    _createWidget: function( options, element ) {
+		        var page, delayedCreate,
+		            that = this;
+
+		        if ( $.mobile.page ) {
+		            page = $( element )
+		                .parents( ":jqmData(role='page'),:mobile-page" )
+		                .first();
+
+		            if ( page.length > 0 && !page.hasClass( "ui-page-active" ) ) {
+		                delayedCreate = this._super;
+		                page.one( "pagebeforeshow", function() {
+		                    delayedCreate.call( that, options, element );
+		                });
+		            }
+		        } else {
+		            return this._super();
+		        }
+		    }
+		});
